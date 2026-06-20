@@ -365,9 +365,14 @@ async function connectSB(){
     const{data,error}=await sbClient.from('cup_state').select('state').eq('id',1).single();
     if(error&&error.code==='PGRST116') await sbClient.from('cup_state').insert({id:1,state:{}});
     else if(data?.state&&Object.keys(data.state).length>0){S=data.state;renderAll();}
+    // Test write to confirm permissions work
+    const{error:we}=await sbClient.from('cup_state').upsert(
+      {id:1,state:S,updated_at:new Date().toISOString()},{onConflict:'id'}
+    );
+    if(we){setCst('❌ Write failed: '+we.message+' — check RLS policy');return;}
     subRT();
     localStorage.setItem('sb_url',url);localStorage.setItem('sb_key',key);
-    setCst('✅ Connected!');setLive(true);setTimeout(closeSett,700);
+    setCst('✅ Connected & verified!');setLive(true);setTimeout(closeSett,700);
   }catch(e){setCst('❌ '+e.message);}
 }
 function subRT(){
@@ -383,7 +388,19 @@ function subRT(){
 async function push(){
   if(!sbClient){saveLoc();return;}
   syncing=true;
-  try{await sbClient.from('cup_state').upsert({id:1,state:S,updated_at:new Date().toISOString()});}catch(e){}
+  try{
+    const{error}=await sbClient.from('cup_state').upsert(
+      {id:1,state:S,updated_at:new Date().toISOString()},
+      {onConflict:'id'}
+    );
+    if(error){
+      console.error('Supabase save error:',error);
+      setCst('⚠️ Save failed: '+error.message);
+    }
+  }catch(e){
+    console.error('Supabase push exception:',e);
+    setCst('⚠️ Save error: '+e.message);
+  }
   syncing=false;saveLoc();
 }
 function saveLoc(){try{localStorage.setItem('cup_state',JSON.stringify(S));}catch(e){}}

@@ -15,7 +15,7 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;background:var(--bg);color:var(--tx);min-height:100dvh;overscroll-behavior:none}
 /* SCOREBOARD */
-#sb{background:var(--s);padding:12px 44px 8px 16px;position:sticky;top:0;z-index:50;border-bottom:1px solid rgba(201,168,76,.2)}
+#sb{background:var(--s);padding:8px 16px 6px;border-bottom:1px solid rgba(201,168,76,.2)}
 .sr{display:flex;align-items:center;gap:8px;margin-bottom:5px}
 .sc{font-size:22px;font-weight:700;min-width:34px;text-align:center}
 .tb{flex:1;height:11px;background:rgba(255,255,255,.08);border-radius:6px;overflow:hidden;position:relative}
@@ -26,8 +26,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;ba
 .ld{display:inline-block;width:7px;height:7px;border-radius:50%;background:#555;margin-right:4px;vertical-align:middle}
 .ld.on{background:#4CAF50}
 .gear{position:absolute;top:10px;right:12px;background:none;border:none;color:var(--tx2);font-size:18px;cursor:pointer;padding:4px;z-index:60}
+/* CUP ODDS */
+.odds-row{display:flex;align-items:center;gap:8px;padding:4px 16px 6px;background:var(--s);border-bottom:1px solid rgba(255,255,255,.04)}
+.odds-lbl{font-size:9px;color:var(--tx2);font-weight:700;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.odds-bar{flex:1;height:5px;border-radius:3px;overflow:hidden;display:flex;background:rgba(255,255,255,.07)}
+.odds-seg{height:100%;transition:width .5s}
+.odds-pcts{font-size:9px;font-weight:700;white-space:nowrap;color:var(--tx2)}
+/* TITLE BAR */
+#titleBar{display:flex;align-items:center;gap:9px;padding:7px 44px 7px 12px;background:var(--s);border-bottom:1px solid rgba(201,168,76,.12)}
+#titleBar img{height:34px;width:auto;object-fit:contain}
+#titleBar span{font-size:14px;font-weight:800;color:var(--gold);letter-spacing:.3px;line-height:1.1}
+#titleBar small{display:block;font-size:9px;font-weight:500;color:var(--tx2);letter-spacing:.3px;text-transform:uppercase}
 /* TABS */
-.tabs{display:flex;background:var(--s);border-bottom:1px solid rgba(255,255,255,.06);position:sticky;top:80px;z-index:49}
+.tabs{display:flex;background:var(--s);border-bottom:1px solid rgba(255,255,255,.06)}
 .tab{flex:1;padding:9px 2px;text-align:center;font-size:11px;font-weight:600;color:var(--tx2);cursor:pointer;border-bottom:2px solid transparent;text-transform:uppercase;letter-spacing:.3px;transition:color .2s,border-color .2s}
 .tab.active{color:var(--gold);border-bottom-color:var(--gold)}
 /* PANELS */
@@ -154,27 +165,46 @@ select:focus{border-color:var(--gold)}
   </div>
 </div>
 
-<!-- SCOREBOARD -->
-<div id="sb">
-  <button class="gear" onclick="openSett()">⚙️</button>
-  <div class="sr">
-    <div class="sc" id="scA" style="color:#E53935">0</div>
-    <div class="tb">
-      <div class="ta" id="tA" style="background:#E53935;width:0%"></div>
-      <div class="tbb" id="tB" style="background:#1565C0;width:0%"></div>
-      <div class="cm"></div>
+<!-- STICKY HEADER -->
+<div style="position:sticky;top:0;z-index:50">
+  <!-- Title -->
+  <div id="titleBar">
+    <img src="logo.png" alt="2PRC">
+    <div>
+      <span>2 Putt Ryder Cup<small>Feed the Flames · 2026</small></span>
     </div>
-    <div class="sc" id="scB" style="color:#1565C0">0</div>
+    <button class="gear" onclick="openSett()" style="position:absolute">⚙️</button>
   </div>
-  <div class="ss"><span class="ld" id="ld"></span><span id="sst">Setup teams · 5 pts to win</span></div>
-</div>
-
-<!-- TABS -->
-<div class="tabs">
-  <div class="tab active" onclick="swTab('live')">Live</div>
-  <div class="tab" onclick="swTab('scramble')">Scramble</div>
-  <div class="tab" onclick="swTab('singles')">Singles</div>
-  <div class="tab" onclick="swTab('setup')">Setup</div>
+  <!-- Scoreboard -->
+  <div id="sb">
+    <div class="sr">
+      <div class="sc" id="scA" style="color:#E53935">0</div>
+      <div class="tb">
+        <div class="ta" id="tA" style="background:#E53935;width:0%"></div>
+        <div class="tbb" id="tB" style="background:#1565C0;width:0%"></div>
+        <div class="cm"></div>
+      </div>
+      <div class="sc" id="scB" style="color:#1565C0">0</div>
+    </div>
+    <div class="ss"><span class="ld" id="ld"></span><span id="sst">Setup teams · 5 pts to win</span></div>
+  </div>
+  <!-- Cup Win Odds -->
+  <div class="odds-row">
+    <span class="odds-lbl">🏆 Cup odds</span>
+    <div class="odds-bar">
+      <div class="odds-seg" id="odA"></div>
+      <div class="odds-seg" id="odT" style="background:rgba(255,255,255,.18)"></div>
+      <div class="odds-seg" id="odB"></div>
+    </div>
+    <span class="odds-pcts" id="odPct">—</span>
+  </div>
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="swTab('live')">Live</div>
+    <div class="tab" onclick="swTab('scramble')">Scramble</div>
+    <div class="tab" onclick="swTab('singles')">Singles</div>
+    <div class="tab" onclick="swTab('setup')">Setup</div>
+  </div>
 </div>
 
 <!-- LIVE TAB -->
@@ -352,6 +382,36 @@ function cupScores(){
   return{a,b};
 }
 
+function cupWinProb(){
+  // Build match outcome distributions (pa=A wins, ph=halve, pb=B wins)
+  const matches=[];
+  for(let i=0;i<3;i++){
+    const st=scrStat(S.scramble.holes[i]),pts=scrPts(st);
+    if(pts.done) matches.push({pa:pts.a===1?1:0,ph:pts.a===.5?1:0,pb:pts.b===1?1:0});
+    else{const p=scrWP(st),h=.04;matches.push({pa:p*(1-h),ph:h,pb:(1-p)*(1-h)});}
+  }
+  for(let i=0;i<6;i++){
+    const st=mStat(S.singles.holes[i]),pts=mPts(st);
+    if(pts.done) matches.push({pa:pts.a===1?1:0,ph:pts.a===.5?1:0,pb:pts.b===1?1:0});
+    else{const p=wp(st.up,st.rem),h=.10;matches.push({pa:p*(1-h),ph:h,pb:(1-p)*(1-h)});}
+  }
+  // DP in half-points: A needs >=10 (=5 pts) to win
+  let dp=new Array(19).fill(0);dp[0]=1;
+  for(const m of matches){
+    const nd=new Array(19).fill(0);
+    for(let j=0;j<=18;j++){
+      if(!dp[j])continue;
+      nd[Math.min(18,j+2)]+=dp[j]*m.pa;
+      nd[Math.min(18,j+1)]+=dp[j]*m.ph;
+      nd[j]+=dp[j]*m.pb;
+    }
+    dp=nd;
+  }
+  let pA=0;for(let j=10;j<=18;j++)pA+=dp[j];
+  const pT=dp[9],pB=Math.max(0,1-pA-pT);
+  return{pA:Math.max(0,pA),pB,pT:Math.max(0,pT)};
+}
+
 // ── SUPABASE ────────────────────────────────────────────────────────────────
 async function loadLib(url,key){
   if(!window.supabase){await new Promise((r,j)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';s.onload=r;s.onerror=j;document.head.appendChild(s);});}
@@ -449,6 +509,16 @@ function updSB(){
   else if(b>=5)st=`🏆 ${nB} wins the Cup!`;
   else{const ra=(5-a).toFixed(a%1?1:0),rb=(5-b).toFixed(b%1?1:0);st=`${nA} needs ${ra} · ${nB} needs ${rb} · 5 to win`;}
   document.getElementById('sst').textContent=st;
+  // Cup win odds bar
+  const{pA,pB,pT}=cupWinProb();
+  const rA=Math.round(pA*100),rB=Math.round(pB*100),rT=Math.round(pT*100);
+  document.getElementById('odA').style.cssText=`width:${rA}%;background:${S.teams.A.color}`;
+  document.getElementById('odT').style.cssText=`width:${rT}%;background:rgba(255,255,255,.2)`;
+  document.getElementById('odB').style.cssText=`width:${rB}%;background:${S.teams.B.color}`;
+  document.getElementById('odPct').innerHTML=
+    `<span style="color:${S.teams.A.color}">${rA}%</span>`+
+    (rT>2?` <span style="color:rgba(255,255,255,.4)">· Tie ${rT}% ·</span> `:'  ')+
+    `<span style="color:${S.teams.B.color}">${rB}%</span>`;
 }
 
 // ── SETUP ────────────────────────────────────────────────────────────────────
@@ -878,8 +948,8 @@ function buildProbChart(type, idx) {
     </div>`;
   }
 
-  const W = 320, H = 130;
-  const pL = 30, pR = 8, pT = 12, pB = 18;
+  const W = 320, H = 90;
+  const pL = 30, pR = 8, pT = 8, pB = 14;
   const cW = W - pL - pR, cH = H - pT - pB;
 
   // Map hole 0–18 → x; prob 0–1 → y (inverted)

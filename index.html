@@ -285,7 +285,7 @@ let sbClient=null,rCh=null,syncing=false;
 let curType=null,curIdx=null;
 
 // ── SCRAMBLE MATH (stroke play / cumulative) ───────────────────────────────
-function scrStat(holes){
+function scrStat(holes,aA=0,aB=0){
   let tA=0,tB=0,played=0;
   for(let i=0;i<18;i++){
     const h=holes[i];
@@ -294,21 +294,25 @@ function scrStat(holes){
     if(h.a) tA+=+h.a;
     if(h.b) tB+=+h.b;
   }
-  return{tA,tB,played,rem:18-played};
+  return{tA,tB,aA,aB,netA:tA-aA,netB:tB-aB,played,rem:18-played};
 }
 
 function scrPts(st){
   if(st.played<18) return{a:0,b:0,done:false};
-  if(st.tA<st.tB) return{a:1,b:0,done:true};
-  if(st.tB<st.tA) return{a:0,b:1,done:true};
+  const na=st.netA??st.tA,nb=st.netB??st.tB;
+  if(na<nb) return{a:1,b:0,done:true};
+  if(nb<na) return{a:0,b:1,done:true};
   return{a:.5,b:.5,done:true};
 }
 
 function scrLabel(st,nA,nB){
-  const{tA,tB,played,rem}=st;
+  const{tA,tB,aA=0,aB=0,played,rem}=st;
   if(played===0) return 'Not started';
-  const diff=tA-tB; // negative = A leads (fewer strokes)
-  const scStr=`${nA} ${tA} · ${nB} ${tB}`;
+  const netA=tA-aA,netB=tB-aB;
+  const hasHcp=aA>0||aB>0;
+  const diff=netA-netB; // negative = A leads (fewer net strokes)
+  const scStr=hasHcp?`${nA} ${netA} · ${nB} ${netB} (net)`:
+    `${nA} ${tA} · ${nB} ${tB}`;
   if(rem===0){
     if(diff<0) return `${nA} wins · ${scStr}`;
     if(diff>0) return `${nB} wins · ${scStr}`;
@@ -320,10 +324,11 @@ function scrLabel(st,nA,nB){
 }
 
 function scrWP(st){
-  const{tA,tB,played,rem}=st;
+  const{tA,tB,aA=0,aB=0,played,rem}=st;
   if(played===0) return .5;
-  if(rem===0) return tA<tB?1:tA>tB?0:.5;
-  const diff=tB-tA; // positive = A leading
+  const netA=tA-aA,netB=tB-aB;
+  if(rem===0) return netA<netB?1:netA>netB?0:.5;
+  const diff=netB-netA; // positive = A leading (A has fewer net strokes)
   const sigma=Math.sqrt(rem)*0.9;
   return 1/(1+Math.exp(-diff/sigma));
 }
@@ -377,7 +382,7 @@ function mLabel(st,nA,nB){
 // ── COMBINED ───────────────────────────────────────────────────────────────
 function cupScores(){
   let a=0,b=0;
-  for(let i=0;i<3;i++){const p=scrPts(scrStat(S.scramble.holes[i]));a+=p.a;b+=p.b;}
+  for(let i=0;i<3;i++){const{aA,aB}=scrAllows(i);const p=scrPts(scrStat(S.scramble.holes[i],aA,aB));a+=p.a;b+=p.b;}
   for(let i=0;i<6;i++){const p=mPts(mStat(S.singles.holes[i]));a+=p.a;b+=p.b;}
   return{a,b};
 }
@@ -386,7 +391,8 @@ function cupWinProb(){
   // Build match outcome distributions (pa=A wins, ph=halve, pb=B wins)
   const matches=[];
   for(let i=0;i<3;i++){
-    const st=scrStat(S.scramble.holes[i]),pts=scrPts(st);
+    const{aA,aB}=scrAllows(i);
+    const st=scrStat(S.scramble.holes[i],aA,aB),pts=scrPts(st);
     if(pts.done) matches.push({pa:pts.a===1?1:0,ph:pts.a===.5?1:0,pb:pts.b===1?1:0});
     else{const p=scrWP(st),h=.04;matches.push({pa:p*(1-h),ph:h,pb:(1-p)*(1-h)});}
   }
@@ -587,6 +593,23 @@ function autoBalance(){
 // ── HELPERS ──────────────────────────────────────────────────────────────────
 function pName(team,idx){return idx==null?'TBD':S.teams[team].players[idx]?.name||'P?';}
 function scrAllow(lo,hi){return Math.round(.35*lo+.15*hi);}
+function scrAllows(idx){
+  const pr=S.scramble.pairings[idx];
+  const pAp=S.teams.A.players,pBp=S.teams.B.players;
+  const aH=(pr.a||[]).filter(x=>x!=null).map(x=>pAp[x]?.hcp||0);
+  const bH=(pr.b||[]).filter(x=>x!=null).map(x=>pBp[x]?.hcp||0);
+  const aA=aH.length===2?scrAllow(Math.min(...aH),Math.max(...aH)):0;
+  const aB=bH.length===2?scrAllow(Math.min(...bH),Math.max(...bH)):0;
+  return{aA,aB};
+}
+function sinStrokes(idx){
+  const pr=S.singles.pairings[idx];
+  const pAp=S.teams.A.players,pBp=S.teams.B.players;
+  const aH=pr.a!=null?+(pAp[pr.a]?.hcp||0):null;
+  const bH=pr.b!=null?+(pBp[pr.b]?.hcp||0):null;
+  if(aH==null||bH==null||aH===bH) return{receiver:null,n:0};
+  return{receiver:aH>bH?'A':'B',n:Math.abs(aH-bH)};
+}
 function scrNames(m){
   const pr=S.scramble.pairings[m];
   const a=(pr.a||[]).filter(x=>x!=null).map(x=>pName('A',x)).join('/');
@@ -673,13 +696,14 @@ function buildCard(type,idx){
   let label,pA,pB,badge,names;
 
   if(type==='scramble'){
-    const st=scrStat(S.scramble.holes[idx]);
+    const{aA,aB}=scrAllows(idx);
+    const st=scrStat(S.scramble.holes[idx],aA,aB);
     names=scrNames(idx);
     label=scrLabel(st,S.teams.A.name,S.teams.B.name);
     const prob=scrWP(st);
     pA=Math.round(prob*100);pB=100-pA;
     const pts=scrPts(st);
-    badge=pts.done?(st.tA<st.tB?S.teams.A.name+' Win':st.tA>st.tB?S.teams.B.name+' Win':'Tied'):`Thru ${st.played}`;
+    badge=pts.done?(st.netA<st.netB?S.teams.A.name+' Win':st.netA>st.netB?S.teams.B.name+' Win':'Tied'):`Thru ${st.played}`;
   } else {
     const st=mStat(S.singles.holes[idx]);
     names=sinNames(idx);
@@ -732,7 +756,8 @@ function closeMatch(){
 
 function getStatLabel(){
   if(curType==='scramble'){
-    const st=scrStat(S.scramble.holes[curIdx]);
+    const{aA,aB}=scrAllows(curIdx);
+    const st=scrStat(S.scramble.holes[curIdx],aA,aB);
     return{label:scrLabel(st,S.teams.A.name,S.teams.B.name),pA:Math.round(scrWP(st)*100)};
   }
   const st=mStat(S.singles.holes[curIdx]);
@@ -779,7 +804,23 @@ function buildMatchModal(){
   const pB=100-pA;
 
   document.getElementById('mTitle').textContent=(type==='scramble'?`Scramble ${idx+1}`:`Singles ${idx+1}`);
-  document.getElementById('mSub').innerHTML=`<span style="color:${S.teams.A.color}">${names.a}</span>&nbsp;vs&nbsp;<span style="color:${S.teams.B.color}">${names.b}</span>`;
+  let subHcp='';
+  if(type==='scramble'){
+    const{aA,aB}=scrAllows(idx);
+    if(aA>0||aB>0){
+      const diff=Math.abs(aA-aB);
+      const who=aA<aB?S.teams.B.name:aA>aB?S.teams.A.name:'';
+      if(who&&diff>0) subHcp=` · <span style="color:var(--gold)">${who} +${diff} strokes</span>`;
+      else if(aA===aB&&aA>0) subHcp=` · <span style="color:var(--tx2)">Even match</span>`;
+    }
+  } else {
+    const{receiver,n}=sinStrokes(idx);
+    if(receiver&&n>0){
+      const rNm=receiver==='A'?names.a.split('/')[0]:names.b.split('/')[0];
+      subHcp=` · <span style="color:var(--gold)">${rNm} +${n} stroke${n!==1?'s':''}</span>`;
+    }
+  }
+  document.getElementById('mSub').innerHTML=`<span style="color:${S.teams.A.color}">${names.a}</span>&nbsp;vs&nbsp;<span style="color:${S.teams.B.color}">${names.b}</span>${subHcp}`;
 
   const body=document.getElementById('mBody');body.innerHTML='';
 
@@ -806,13 +847,13 @@ function buildMatchModal(){
       });
 
     const tbody=tbl.createTBody();
-    let runA=0,runB=0;
+    let runA=0,runB=0,played18=0;
     for(let h=0;h<18;h++){
       const row=tbody.insertRow();
       const sc=S.scramble.holes[idx][h];
       const hA=sc.a?+sc.a:0;
       const hB=sc.b?+sc.b:0;
-      if(sc.a||sc.b){runA+=hA;runB+=hB;}
+      if(sc.a||sc.b){runA+=hA;runB+=hB;played18++;}
 
       // Hole #
       const hn=row.insertCell();hn.className='hn';hn.textContent=h+1;
@@ -855,6 +896,18 @@ function buildMatchModal(){
       rBc.setAttribute('data-tot-b','');
       rBc.textContent=(sc.a||sc.b)?runB:'—';
     }
+    // Net summary row on initial build if all 18 played
+    if(played18===18){
+      const{aA,aB}=scrAllows(idx);
+      const nr=tbody.insertRow();
+      nr.style.cssText='border-top:1px solid rgba(201,168,76,.4)';
+      nr.innerHTML=`
+        <td class="hn" style="color:var(--gold);font-size:9px;font-weight:800">NET</td>
+        <td colspan="2" style="font-size:9px;color:var(--tx2);text-align:center">−${aA} / −${aB}</td>
+        <td class="totcol" style="color:${S.teams.A.color};font-weight:800;font-size:14px">${runA-aA}</td>
+        <td class="totcol" style="color:${S.teams.B.color};font-weight:800;font-size:14px">${runB-aB}</td>
+      `;
+    }
   } else {
     // Singles — hole winner buttons
     const hdr=tbl.createTHead().insertRow();
@@ -893,16 +946,29 @@ function buildMatchModal(){
 
 // Recalculate and refresh running total cells without rebuilding the table
 function refreshScrTotals(tbody,idx){
-  let runA=0,runB=0;
+  let runA=0,runB=0,played=0;
   for(let h=0;h<18;h++){
     const sc=S.scramble.holes[idx][h];
     const hA=sc.a?+sc.a:0,hB=sc.b?+sc.b:0;
-    if(sc.a||sc.b){runA+=hA;runB+=hB;}
+    if(sc.a||sc.b){runA+=hA;runB+=hB;played++;}
     const row=tbody.rows[h];
     if(row){
       row.cells[3].textContent=(sc.a||sc.b)?runA:'—';
       row.cells[4].textContent=(sc.a||sc.b)?runB:'—';
     }
+  }
+  // Net summary row — remove old, add fresh if 18 holes complete
+  if(tbody.rows[18]) tbody.deleteRow(18);
+  if(played===18){
+    const{aA,aB}=scrAllows(idx);
+    const nr=tbody.insertRow();
+    nr.style.cssText='border-top:1px solid rgba(201,168,76,.4)';
+    nr.innerHTML=`
+      <td class="hn" style="color:var(--gold);font-size:9px;font-weight:800">NET</td>
+      <td colspan="2" style="font-size:9px;color:var(--tx2);text-align:center">−${aA} / −${aB}</td>
+      <td class="totcol" style="color:${S.teams.A.color};font-weight:800;font-size:14px">${runA-aA}</td>
+      <td class="totcol" style="color:${S.teams.B.color};font-weight:800;font-size:14px">${runB-aB}</td>
+    `;
   }
 }
 
@@ -911,13 +977,14 @@ function getProbHistory(type, idx) {
   // Always start at 50/50 before any holes
   const pts = [{ hole: 0, prob: 0.5 }];
   if (type === 'scramble') {
+    const {aA,aB}=scrAllows(idx);
     let rA = 0, rB = 0;
     for (let h = 0; h < 18; h++) {
       const sc = S.scramble.holes[idx][h];
       if (!sc.a && !sc.b) break;
       if (sc.a) rA += +sc.a;
       if (sc.b) rB += +sc.b;
-      pts.push({ hole: h + 1, prob: scrWP({ tA: rA, tB: rB, played: h + 1, rem: 17 - h }) });
+      pts.push({ hole: h + 1, prob: scrWP({ tA: rA, tB: rB, aA, aB, played: h + 1, rem: 17 - h }) });
     }
   } else {
     let up = 0;

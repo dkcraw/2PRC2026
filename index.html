@@ -418,6 +418,42 @@ function cupWinProb(){
   return{pA:Math.max(0,pA),pB,pT:Math.max(0,pT)};
 }
 
+// ── STATE MIGRATION ──────────────────────────────────────────────────────────
+// Ensures any loaded state (from Supabase or localStorage) has the correct structure
+function ensureState(s){
+  if(!s||typeof s!=='object') return JSON.parse(JSON.stringify(DS));
+  // Teams
+  if(!s.teams) s.teams=JSON.parse(JSON.stringify(DS.teams));
+  ['A','B'].forEach(t=>{
+    if(!s.teams[t]) s.teams[t]=JSON.parse(JSON.stringify(DS.teams[t]));
+    if(!Array.isArray(s.teams[t].players)) s.teams[t].players=Array(6).fill(0).map(()=>({name:'',hcp:0}));
+    while(s.teams[t].players.length<6) s.teams[t].players.push({name:'',hcp:0});
+  });
+  // Scramble
+  if(!s.scramble||typeof s.scramble!=='object') s.scramble=JSON.parse(JSON.stringify(DS.scramble));
+  if(!Array.isArray(s.scramble.pairings)||s.scramble.pairings.length<3)
+    s.scramble.pairings=JSON.parse(JSON.stringify(DS.scramble.pairings));
+  if(!Array.isArray(s.scramble.holes)||s.scramble.holes.length<3)
+    s.scramble.holes=Array(3).fill(0).map(()=>Array(18).fill(0).map(()=>({a:'',b:''})));
+  for(let i=0;i<3;i++){
+    if(!Array.isArray(s.scramble.holes[i])||s.scramble.holes[i].length<18)
+      s.scramble.holes[i]=Array(18).fill(0).map(()=>({a:'',b:''}));
+    s.scramble.holes[i]=s.scramble.holes[i].map(h=>
+      h&&typeof h==='object'&&('a' in h||'b' in h)?{a:h.a||'',b:h.b||''}:{a:'',b:''});
+  }
+  // Singles
+  if(!s.singles||typeof s.singles!=='object') s.singles=JSON.parse(JSON.stringify(DS.singles));
+  if(!Array.isArray(s.singles.pairings)||s.singles.pairings.length<6)
+    s.singles.pairings=JSON.parse(JSON.stringify(DS.singles.pairings));
+  if(!Array.isArray(s.singles.holes)||s.singles.holes.length<6)
+    s.singles.holes=Array(6).fill(0).map(()=>Array(18).fill(null));
+  for(let i=0;i<6;i++){
+    if(!Array.isArray(s.singles.holes[i])||s.singles.holes[i].length<18)
+      s.singles.holes[i]=Array(18).fill(null);
+  }
+  return s;
+}
+
 // ── SUPABASE ────────────────────────────────────────────────────────────────
 async function loadLib(url,key){
   if(!window.supabase){await new Promise((r,j)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';s.onload=r;s.onerror=j;document.head.appendChild(s);});}
@@ -430,7 +466,7 @@ async function connectSB(){
     sbClient=await loadLib(url,key);
     const{data,error}=await sbClient.from('cup_state').select('state').eq('id',1).single();
     if(error&&error.code==='PGRST116') await sbClient.from('cup_state').insert({id:1,state:{}});
-    else if(data?.state&&Object.keys(data.state).length>0){S=data.state;renderAll();}
+    else if(data?.state&&Object.keys(data.state).length>0){S=ensureState(data.state);renderAll();}
     // Test write to confirm permissions work
     const{error:we}=await sbClient.from('cup_state').upsert(
       {id:1,state:S,updated_at:new Date().toISOString()},{onConflict:'id'}
@@ -445,7 +481,7 @@ function subRT(){
   if(rCh)rCh.unsubscribe();
   rCh=sbClient.channel('cup').on('postgres_changes',{event:'UPDATE',schema:'public',table:'cup_state',filter:'id=eq.1'},p=>{
     if(syncing)return;
-    S=p.new.state;
+    S=ensureState(p.new.state);
     renderAll();
     flashSB();
     if(document.getElementById('matchOv').classList.contains('open')) updModalStat();
@@ -471,7 +507,7 @@ async function push(){
 }
 function saveLoc(){try{localStorage.setItem('cup_state',JSON.stringify(S));}catch(e){}}
 function loadLoc(){
-  try{const r=localStorage.getItem('cup_state');if(r){const s=JSON.parse(r);if(s?.teams)S=s;}}catch(e){}
+  try{const r=localStorage.getItem('cup_state');if(r){const s=JSON.parse(r);if(s?.teams)S=ensureState(s);}}catch(e){}
   const url=localStorage.getItem('sb_url'),key=localStorage.getItem('sb_key');
   if(url&&key){
     document.getElementById('sbUrl').value=url;document.getElementById('sbKey').value=key;
